@@ -25,12 +25,13 @@ PENPOT_HOST="${PENPOT_HOST:-penpot.sociomedia.com}"
 BACKUP_DIR=./backups
 KEEP_BACKUPS=10
 OVERRIDE=docker-compose.override.yml
+OVERRIDE_TEMPLATE=ecr-override.yml
 
 exec > >(tee -a deploy.log) 2>&1
 echo "=== $(date -Is) deploy $TAG"
 
-if [[ ! -f "$OVERRIDE" ]]; then
-    echo "$OVERRIDE not found" >&2
+if [[ ! -f "$OVERRIDE_TEMPLATE" ]]; then
+    echo "$OVERRIDE_TEMPLATE not found" >&2
     exit 1
 fi
 
@@ -70,16 +71,18 @@ rollback() {
     else
         unset PENPOT_CUSTOM_VERSION
         sed -i '/^PENPOT_CUSTOM_VERSION=/d' .env
-        mv "$OVERRIDE" "$OVERRIDE.disabled"
-        echo "!! $OVERRIDE moved to $OVERRIDE.disabled"
+        rm -f "$OVERRIDE"
+        echo "!! $OVERRIDE removed (back to official images)"
     fi
     docker compose up -d
     exit 1
 }
 
-# 本体の docker-compose.yml を変えずに済むよう、以降の compose 呼び出しは
-# 新しいタグで設定を解決する。
+# 以降の compose 呼び出しは新しいタグで設定を解決する。
+# 初回は切替前に失敗したら override を消し、公式イメージの構成に戻しておく。
 export PENPOT_CUSTOM_VERSION="$TAG"
+cp "$OVERRIDE_TEMPLATE" "$OVERRIDE"
+trap '[[ -n "$PREV" ]] || rm -f "$OVERRIDE"' ERR
 
 echo ">> pulling images"
 docker compose pull "${SERVICES[@]}"
@@ -90,6 +93,8 @@ BACKUP="$BACKUP_DIR/penpot-$(date +%Y%m%d-%H%M%S)-${PREV:-official}.dump"
 docker compose exec -T penpot-postgres pg_dump -U penpot -Fc penpot > "$BACKUP"
 echo "   $BACKUP ($(du -h "$BACKUP" | cut -f1))"
 ls -1t "$BACKUP_DIR"/penpot-*.dump | tail -n +$((KEEP_BACKUPS + 1)) | xargs -r rm -f
+
+trap - ERR
 
 echo ">> starting $TAG"
 set-version "$TAG"

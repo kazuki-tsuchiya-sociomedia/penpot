@@ -1,8 +1,9 @@
-# /home/ubuntu/penpot/docker-compose.override.yml として配置する。
+# /home/ubuntu/penpot/ecr-override.yml として配置する。
 #
+# deploy.sh が初回デプロイ時に docker-compose.override.yml としてコピーする。
 # docker compose は同じディレクトリの docker-compose.override.yml を自動で
 # 重ねて読み込むため、本体の docker-compose.yml は変更せずに、自前ビルドの
-# イメージ (ECR) へ差し替えられる。このファイルを退避すれば公式イメージに戻る。
+# イメージ (ECR) へ差し替えられる。override を消せば公式イメージに戻る。
 #
 # PENPOT_CUSTOM_VERSION は deploy.sh が .env に書き込む。
 # admin-console は本家の非公開リポジトリでビルドされるため公式イメージのまま。
