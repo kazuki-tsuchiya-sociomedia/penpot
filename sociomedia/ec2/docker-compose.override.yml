@@ -1,0 +1,21 @@
+# /home/ubuntu/penpot/docker-compose.override.yml として配置する。
+#
+# docker compose は同じディレクトリの docker-compose.override.yml を自動で
+# 重ねて読み込むため、本体の docker-compose.yml は変更せずに、自前ビルドの
+# イメージ (ECR) へ差し替えられる。このファイルを退避すれば公式イメージに戻る。
+#
+# PENPOT_CUSTOM_VERSION は deploy.sh が .env に書き込む。
+# admin-console は本家の非公開リポジトリでビルドされるため公式イメージのまま。
+
+services:
+  penpot-frontend:
+    image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/frontend:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"
+
+  penpot-backend:
+    image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/backend:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"
+
+  penpot-exporter:
+    image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/exporter:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"
+
+  penpot-mcp:
+    image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/mcp:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"

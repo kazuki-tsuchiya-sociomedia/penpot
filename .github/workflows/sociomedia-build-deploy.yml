@@ -1,0 +1,209 @@
+name: sociomedia / Build & Deploy
+
+run-name: >-
+  sociomedia / Build & Deploy (${{ github.ref_name }} @ ${{ github.sha }})
+
+# sociomedia/main への push で arm64 イメージをビルドして ECR に push し、
+# SSM 経由で EC2 (t4g.medium) に反映する。
+on:
+  push:
+    branches:
+      - sociomedia/main
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'ビルド後に EC2 へデプロイする'
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: sociomedia-build-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  AWS_REGION: ap-northeast-1
+  AWS_ROLE_ARN: arn:aws:iam::045084157533:role/penpot-github-actions
+  ECR_REGISTRY: 045084157533.dkr.ecr.ap-northeast-1.amazonaws.com
+  ECR_PREFIX: penpot
+  EC2_INSTANCE_ID: i-083937308e9a91b57
+  DEPLOY_SCRIPT: /home/ubuntu/penpot/deploy.sh
+
+jobs:
+  build:
+    name: Build bundles & arm64 images
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 150
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      # フォークにはタグを push しない (本家の build-tag.yml が起動するため)。
+      # バージョン番号 (git describe) の算出用に本家のタグだけ取得する。
+      - name: Fetch upstream tags
+        run: git fetch --no-tags https://github.com/penpot/penpot.git '+refs/tags/*:refs/tags/*'
+
+      - name: Resolve version
+        id: version
+        run: |
+          VERSION="$(git describe --tags --match '*.*.*')"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "### Version: \`$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Free disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL || true
+          df -h /
+
+      # 公開されている devenv イメージは develop 向けの latest のみで、
+      # CARGO_HOME (/opt/cargo) が root 所有のため、追加の crate を取得できない。
+      - name: Prepare devenv image
+        run: |
+          docker pull penpotapp/devenv:latest
+          printf 'FROM penpotapp/devenv:latest\nRUN chmod -R a+rwX /opt/cargo\n' \
+            | docker build -t penpotapp/devenv:latest -
+
+      - name: Build bundles
+        run: |
+          ./manage.sh build-frontend-bundle
+          ./manage.sh build-backend-bundle
+          ./manage.sh build-exporter-bundle
+          ./manage.sh build-mcp-bundle
+
+      - name: Stage bundles for docker build
+        run: |
+          for image in frontend backend exporter mcp; do
+            rsync -a --delete "./bundles/$image/" "./docker/images/bundle-$image/"
+          done
+
+      # ベースイメージ (dhi.io) の取得には Docker Hub アカウントでのログインが必要。
+      - name: Login to Docker Hub
+        uses: docker/login-action@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to Docker Hardened Images registry
+        uses: docker/login-action@v4
+        with:
+          registry: dhi.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/images/
+          file: ./docker/images/Dockerfile.frontend
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/frontend:${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/images/
+          file: ./docker/images/Dockerfile.backend
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/backend:${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+
+      - name: Build and push exporter
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/images/
+          file: ./docker/images/Dockerfile.exporter
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/exporter:${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=exporter
+          cache-to: type=gha,scope=exporter,mode=max
+
+      - name: Build and push mcp
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/images/
+          file: ./docker/images/Dockerfile.mcp
+          platforms: linux/arm64
+          push: true
+          provenance: false
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_PREFIX }}/mcp:${{ steps.version.outputs.version }}
+          cache-from: type=gha,scope=mcp
+          cache-to: type=gha,scope=mcp,mode=max
+
+  deploy:
+    name: Deploy to EC2
+    needs: build
+    if: github.event_name == 'push' || inputs.deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run deploy script via SSM
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          PARAMS=$(jq -nc --arg cmd "sudo -iu ubuntu $DEPLOY_SCRIPT $VERSION" \
+            '{commands: [$cmd], executionTimeout: ["1200"]}')
+
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --comment "penpot deploy $VERSION" \
+            --parameters "$PARAMS" \
+            --query Command.CommandId --output text)
+          echo "SSM command: $CMD_ID"
+
+          STATUS=Pending
+          for i in $(seq 1 130); do
+            sleep 10
+            STATUS=$(aws ssm get-command-invocation \
+              --command-id "$CMD_ID" --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/dev/null || echo Pending)
+            case "$STATUS" in
+              Pending|InProgress|Delayed) continue ;;
+              *) break ;;
+            esac
+          done
+
+          aws ssm get-command-invocation \
+            --command-id "$CMD_ID" --instance-id "$EC2_INSTANCE_ID" \
+            --query '[StandardOutputContent, StandardErrorContent]' --output text || true
+
+          echo "### Deploy \`$VERSION\`: $STATUS" >> "$GITHUB_STEP_SUMMARY"
+          [ "$STATUS" = "Success" ]
