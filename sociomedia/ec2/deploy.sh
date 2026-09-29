@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # /home/ubuntu/penpot/deploy.sh として配置する (chmod +x)。
-# GitHub Actions から SSM 経由で `sudo -iu ubuntu deploy.sh <tag>` として実行される。
+# GitHub Actions から SSM ドキュメント penpot-deploy 経由で `sudo -iu ubuntu deploy.sh <tag>` として実行される。
 # 手動でのデプロイ・ロールバックも同じコマンドで行える。
 #
 #   ./deploy.sh 2.18.0-3-gabc1234

@@ -27,7 +27,7 @@
       "Action": "ssm:SendCommand",
       "Resource": [
         "arn:aws:ec2:ap-northeast-1:045084157533:instance/i-083937308e9a91b57",
-        "arn:aws:ssm:ap-northeast-1::document/AWS-RunShellScript"
+        "arn:aws:ssm:ap-northeast-1:045084157533:document/penpot-deploy"
       ]
     },
     {
