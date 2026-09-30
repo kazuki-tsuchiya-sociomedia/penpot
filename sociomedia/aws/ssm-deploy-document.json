@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Deploy a Penpot image tag from ECR on the Penpot EC2 instance (runs /home/ubuntu/penpot/deploy.sh only).",
+  "parameters": {
+    "tag": {
+      "type": "String",
+      "description": "Image tag to deploy (git describe of the fork, e.g. 2.18.0-3-gabc1234).",
+      "allowedPattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "deploy",
+      "inputs": {
+        "timeoutSeconds": "1200",
+        "runCommand": [
+          "sudo -iu ubuntu /home/ubuntu/penpot/deploy.sh '{{ tag }}'"
+        ]
+      }
+    }
+  ]
+}
