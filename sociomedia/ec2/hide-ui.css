@@ -35,3 +35,17 @@
   ) {
   display: none !important;
 }
+
+/*
+ * 登録は招待制 (PENPOT_FLAGS の disable-registration)。ログイン画面の
+ * 「アカウントを作成」はこのフラグで消えるが、次の 2 か所はフラグを
+ * 見ていないので、ここで隠す。押しても登録はバックエンドが拒否する。
+ */
+
+/* 404 画面のログインダイアログ: 「アカウントを作成」の行と、その上の区切り線 */
+.main_ui_static__change-section:has(> a[data-section="register"]),
+.main_ui_static__separator:has(+ .main_ui_static__change-section > a[data-section="register"]),
+/* 共有リンクのビューアーのログインダイアログ: 「アカウントを作成」の行 */
+.main_ui_viewer_login__login-links > div:has(> span + a[data-value="register"]) {
+  display: none !important;
+}
