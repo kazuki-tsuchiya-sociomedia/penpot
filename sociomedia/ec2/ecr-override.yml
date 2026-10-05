@@ -12,6 +12,39 @@ services:
   penpot-frontend:
     image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/frontend:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"
 
+    # hide-ui.css (このファイルと同じディレクトリに配置) を index.html から
+    # 読み込ませ、本家の Enterprise 向け案内を隠す。イメージ本来の
+    # /entrypoint.sh の前に一段はさむだけで、最後に必ずそちらへ処理を渡す。
+    #
+    # - index.html は no-store で配信されるので、再起動すればすぐ反映される。
+    #   CSS 側は 7 日キャッシュされるため、内容のチェックサムを ?v= に付ける。
+    # - hide-ui.css が無いとき (docker は代わりに空ディレクトリを作る) は
+    #   何もせずに起動する。表示が隠れないだけで、Penpot は止まらない。
+    # - `$$` は compose の変数展開を避けるためのエスケープ。
+    volumes:
+      - ./hide-ui.css:/sociomedia/hide-ui.css:ro
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        src=/sociomedia/hide-ui.css
+        app=/var/www/app
+        if [[ -f "$$src" && -w "$$app/index.html" ]]; then
+          cp "$$src" "$$app/css/sociomedia-hide-ui.css"
+          v="$$(cksum < "$$src" | cut -d' ' -f1)"
+          link="<link id=\"sociomedia-hide-ui\" rel=\"stylesheet\" href=\"css/sociomedia-hide-ui.css?v=$$v\" />"
+          sed -i \
+            -e 's|<link id="sociomedia-hide-ui"[^>]*/>||' \
+            -e "s|</head>|$$link</head>|" \
+            "$$app/index.html"
+          echo "sociomedia: hide-ui.css installed (v=$$v)"
+        else
+          echo "sociomedia: hide-ui.css not installed" >&2
+        fi
+        exec /bin/bash /entrypoint.sh "$$@"
+      - --
+    command: ["nginx", "-g", "daemon off;"]
+
   penpot-backend:
     image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/backend:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"
 
