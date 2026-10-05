@@ -81,6 +81,19 @@ jobs:
           ./manage.sh build-exporter-bundle
           ./manage.sh build-mcp-bundle
 
+      # sociomedia/ec2/hide-ui.css は本家の CSS クラス名に依存する。本家が名前を
+      # 変えると黙って効かなくなるので、イメージを push する前にここで止める。
+      - name: Check hide-ui.css selectors
+        run: |
+          missing=0
+          for class in $(grep -oE '\.main_ui_[A-Za-z0-9_-]+' sociomedia/ec2/hide-ui.css | sort -u); do
+            if ! grep -qF -- "$class" ./bundles/frontend/css/main.css; then
+              echo "::error file=sociomedia/ec2/hide-ui.css::$class is not in the built main.css"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: Stage bundles for docker build
         run: |
           for image in frontend backend exporter mcp; do

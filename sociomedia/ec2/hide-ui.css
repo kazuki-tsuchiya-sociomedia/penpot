@@ -1,0 +1,51 @@
+/*
+ * /home/ubuntu/penpot/hide-ui.css として配置する。
+ *
+ * ecr-override.yml の penpot-frontend entrypoint が、コンテナ起動時に
+ * このファイルを css/sociomedia-hide-ui.css として配信し、index.html から
+ * 読み込ませる。本家の Enterprise (nitrate) 向け案内を画面から隠す。
+ *
+ * クラス名は CSS Modules が `main_ui_<ファイルパス>__<クラス>` の形で
+ * 決定的に生成する (frontend/src/app/main/style.clj)。本家が SCSS の
+ * クラス名やファイル名を変えると効かなくなるため、CI の
+ * sociomedia-build-deploy.yml がビルド後の main.css に各セレクタが
+ * 残っているかを確認する。セレクタを足したら CI 側の一覧も更新する。
+ *
+ * 表示を消すだけで、機能そのものは無効化しない。
+ */
+
+/* ダッシュボード: 「+ Create org」ボタン (組織が無いとき) */
+.main_ui_dashboard_sidebar__create-organization,
+/* ダッシュボード: 組織ドロップダウン内の「Create org」項目。
+   同じクラスを持つ「Go to admin console」は残すため、区切り線の直後の
+   項目だけを対象にする。 */
+.main_ui_dashboard_sidebar__team-separator
+  + .main_ui_dashboard_sidebar__organization-dropdown-item.main_ui_dashboard_sidebar__action,
+/* ダッシュボード: 「Unlock Enterprise features」バナー */
+.main_ui_dashboard_subscription__nitrate-banner,
+/* アカウント設定 > Subscription: 「Other penpot plans」セクション */
+.main_ui_settings_subscription__other-subscriptions {
+  display: none !important;
+}
+
+/* 「Create org」が最後の項目だったとき、上の区切り線だけが残らないようにする。
+   :has() 非対応のブラウザで上の規則まで無効にならないよう、別の規則にしてある。 */
+.main_ui_dashboard_sidebar__team-separator:has(
+    + .main_ui_dashboard_sidebar__organization-dropdown-item.main_ui_dashboard_sidebar__action:last-child
+  ) {
+  display: none !important;
+}
+
+/*
+ * 登録は招待制 (PENPOT_FLAGS の disable-registration)。ログイン画面の
+ * 「アカウントを作成」はこのフラグで消えるが、次の 2 か所はフラグを
+ * 見ていないので、ここで隠す。押しても登録はバックエンドが拒否する。
+ */
+
+/* 404 画面のログインダイアログ: 「アカウントを作成」の行と、その上の区切り線 */
+.main_ui_static__change-section:has(> a[data-section="register"]),
+.main_ui_static__separator:has(+ .main_ui_static__change-section > a[data-section="register"]),
+/* 共有リンクのビューアーのログインダイアログ: 「アカウントを作成」の行 */
+.main_ui_viewer_login__login-links > div:has(> span + a[data-value="register"]) {
+  display: none !important;
+}
