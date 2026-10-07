@@ -94,6 +94,19 @@ jobs:
           done
           exit "$missing"
 
+      # sociomedia/ec2/brand-symbols.svg は本家のロゴ部品 (<symbol id>) を同じ id で
+      # 上書きする。本家が id を変えると黙って元のロゴに戻るので、ここで止める。
+      - name: Check brand-symbols.svg ids
+        run: |
+          missing=0
+          for id in $(grep -oE '<symbol id="[^"]+"' sociomedia/ec2/brand-symbols.svg | cut -d'"' -f2 | sort -u); do
+            if ! grep -qF -- "id=\"$id\"" ./bundles/frontend/index.html; then
+              echo "::error file=sociomedia/ec2/brand-symbols.svg::$id is not in the built index.html"
+              missing=1
+            fi
+          done
+          exit "$missing"
+
       - name: Stage bundles for docker build
         run: |
           for image in frontend backend exporter mcp; do

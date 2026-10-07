@@ -1,0 +1,22 @@
+<!--
+  /home/ubuntu/penpot/brand-symbols.svg として配置する。
+
+  ecr-override.yml の penpot-frontend entrypoint が、コンテナ起動時に
+  この内容を index.html の <body> 直後に差し込む。Penpot は同じ id の
+  <symbol> を文書内で最初に見つかったものから使うため、元の部品を
+  消さずに上書きできる。
+
+  id は本家の frontend/src/app/main/ui/ds/foundations/assets/raw_svg.cljs
+  にある名前に合わせる。本家が id を変えると効かなくなるため、CI の
+  sociomedia-build-deploy.yml がビルド後の index.html に各 id が
+  残っているかを確認する。symbol を足したら CI 側の一覧も更新する。
+
+  asset-penpot-logo-icon: ダッシュボード左上とエラー画面のアイコン。
+    元は additional_assets/sociomedia-logo.svg (Illustrator 書き出し)。
+    fill を付けないことで、元のアイコンと同じく CSS の色を受け取る。
+-->
+<svg id="sociomedia-brand" width="0" height="0" style="position:absolute" xmlns="http://www.w3.org/2000/svg">
+  <symbol id="asset-penpot-logo-icon" viewBox="0 0 28.35 36.85">
+    <path d="M20.26,1.42c4.07,0,6.67,3.44,6.67,6.59c0,3.75-3.4,6.26-4.98,6.26c0,0.93,4.94,4.65,4.94,9.27c0,6.42-6.11,11.89-13.93,11.89c-7.48,0-11.55-5.54-11.55-10.16c0-4.77,4.25-7.2,7.57-7.2c3.24,0,6.6,2.25,6.6,5.58c0,3.79-3.36,5.7-4.48,5.7c0,0.45,2.18,0.94,3.44,0.94c3.23,0,6.22-2.51,6.22-5.82c0-4.53-7.69-7.11-7.69-15.33C13.08,4,16.54,1.42,20.26,1.42z"/>
+  </symbol>
+</svg>
