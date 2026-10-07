@@ -49,3 +49,23 @@
 .main_ui_viewer_login__login-links > div:has(> span + a[data-value="register"]) {
   display: none !important;
 }
+
+/*
+ * 表示の調整。非表示ではなく、本家 2.18.0 の見た目の不具合を直す。
+ */
+
+/* ダッシュボード左上のアイコン: 本家は fill に未定義の変数
+   (--icon-stroke-color) を使っていて黒に落ちるため、ライトテーマでは
+   黒い円の上に黒いロゴになる。円 (--color-foreground-primary) の反対色を
+   明示する。ダーク: 白い円に黒、ライト: 黒い円に白。 */
+.main_ui_dashboard_sidebar__organization-penpot-icon svg {
+  fill: var(--color-background-primary) !important;
+}
+
+/* プロジェクト一覧の見出し (「下書き」など): 本家は高さ 16px に
+   line-height 0.8 を組み合わせていて、日本語のように字面の高い文字は
+   上端が切れる (「下」が「ト」に見える)。高さを文字に合わせる。 */
+.main_ui_dashboard_projects__project-name {
+  block-size: auto !important;
+  line-height: 1.2 !important;
+}
