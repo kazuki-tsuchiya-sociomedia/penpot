@@ -13,8 +13,9 @@ services:
     image: "045084157533.dkr.ecr.ap-northeast-1.amazonaws.com/penpot/frontend:${PENPOT_CUSTOM_VERSION:?PENPOT_CUSTOM_VERSION is not set}"
 
     # hide-ui.css (このファイルと同じディレクトリに配置) を index.html から
-    # 読み込ませ、本家の Enterprise 向け案内を隠す。イメージ本来の
-    # /entrypoint.sh の前に一段はさむだけで、最後に必ずそちらへ処理を渡す。
+    # 読み込ませ、本家の Enterprise 向け案内を隠す。brand-symbols.svg で
+    # ロゴ部品も差し替える。イメージ本来の /entrypoint.sh の前に一段
+    # はさむだけで、最後に必ずそちらへ処理を渡す。
     #
     # - index.html は no-store で配信されるので、再起動すればすぐ反映される。
     #   CSS 側は 7 日キャッシュされるため、内容のチェックサムを ?v= に付ける。
@@ -23,6 +24,7 @@ services:
     # - `$$` は compose の変数展開を避けるためのエスケープ。
     volumes:
       - ./hide-ui.css:/sociomedia/hide-ui.css:ro
+      - ./brand-symbols.svg:/sociomedia/brand-symbols.svg:ro
     entrypoint:
       - /bin/bash
       - -c
@@ -40,6 +42,21 @@ services:
           echo "sociomedia: hide-ui.css installed (v=$$v)"
         else
           echo "sociomedia: hide-ui.css not installed" >&2
+        fi
+        # brand-symbols.svg (同じディレクトリに配置) の <symbol> を <body> 直後に
+        # 差し込み、本家のロゴ部品を同じ id で上書きする。再起動時は前回の
+        # 差し込み (id="sociomedia-brand") を取り除いてから入れ直す。
+        brand=/sociomedia/brand-symbols.svg
+        if [[ -f "$$brand" && -w "$$app/index.html" ]]; then
+          perl -0pi -e '
+            BEGIN { open(my $$f, "<", "/sociomedia/brand-symbols.svg") or die; local $$/; $$b = <$$f>; close $$f;
+                    $$b =~ s/<!--.*?-->//gs; $$b =~ s/\s+/ /g; $$b =~ s/^ | $$//g; }
+            s{<svg id="sociomedia-brand".*?</svg>}{}s;
+            s{<body>}{<body>$$b}s;
+          ' "$$app/index.html"
+          echo "sociomedia: brand-symbols.svg installed ($$(grep -o '<symbol id=\"[^\"]*\"' "$$brand" | tr '\n' ' '))"
+        else
+          echo "sociomedia: brand-symbols.svg not installed" >&2
         fi
         exec /bin/bash /entrypoint.sh "$$@"
       - --
